@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+    <title>RCE Visualisatie</title>
+
+    <meta charset="UTF-8">
+
+    <link href="files/bootstrap.css" rel="stylesheet">
+    <link rel="stylesheet" type="text/css" href="files/dc.css">
+
+    <script src="files/ga.js" async="" type="text/javascript"></script>
+    <script type="text/javascript" src="files/d3.js"></script>
+    <script type="text/javascript" src="files/crossfilter.js"></script>
+    <script type="text/javascript" src="files/dc.js"></script>
+
+</head>
+<body>
+    <div class='container' id='main-container'>
+        <div class='content'>
+            <div class='container'>
+                <div class='row-fluid'>
+                    <div class='remaining-graphs span8'>
+                        <div class='row-fluid'>
+                            <div class='row-graph span6' id='object-label-row'>
+                                <h4>Object label</h4><a class="btn-primary btn btn-mini" onclick="clearObjectLabel();">Reset</a>
+                            </div>
+                            <div class='ring-graph span6' id='activity-label-row'>
+                                <h4>Activity label</h4><a class="btn-primary btn btn-mini" onclick="clearActivityLabel();">Reset</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class='remaining-graphs span4'>
+                        <div class='row-fluid'>
+                            <div class='ring-graph' id='precision-ring'>
+                                <h4>Precision</h4><a class="btn-primary btn btn-mini" onclick="clearPrecision();">Reset</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+ 
+                <div class='row-fluid'>
+                     <div class='span4 table-graph'>
+                        <h4>Object/actor</h4>
+                        <p><small>Filtered on: <strong><span id="objectTerm" class="">-</span></strong>&nbsp;<a class="btn-primary btn btn-mini" onclick="clearObjectTerm();">Reset</a></small></p>
+                        <table class='table table-hover dc-data-table' id='object-table'>
+                            <thead>
+                                <tr class='header'>
+                                    <th>Term</th>
+                                    <th>#Triples</th>
+                                    <th>#Distinct</th>
+                                </tr>
+                            </thead>
+                        </table>
+                    </div>
+                    <div class='span4 table-graph'>
+                        <h4>Activity</h4>
+                        <p><small>Filtered on: <strong><span id="activityTerm" class="">-</span></strong>&nbsp;<a class="btn-primary btn btn-mini" onclick="clearActivityTerm();">Reset</a></small></p>
+                        <table class='table table-hover dc-data-table' id='activity-table'>
+                            <thead>
+                                <tr class='header'>
+                                    <th>Term</th>
+                                    <th>#Triples</th>
+                                    <th>#Distinct</th>
+                                </tr>
+                            </thead>
+                        </table>
+                    </div>
+                    <div class='row-graph span4' id='profiles-row'>
+                        <h4>Profiles</h4><a class="btn-primary btn btn-mini" onclick="clearProfiles();">Reset</a>
+                    </div>    
+                </div>
+
+                <div class='row-fluid'>
+                     <div class='span12 table-graph'>
+                        <h4>Documents</h4>
+                        <p><small>Filtered on: <strong><span id="docref" class="">-</span></strong>&nbsp;<a class="btn-primary btn btn-mini" onclick="clearDocref();">Reset</a></small></p>
+                        <table class='table table-hover dc-data-table' id='docref-table'>
+                            <thead>
+                                <tr class='header'>
+                                    <th>Document</th>
+                                    <th>#Triples</th>
+                            </thead>
+                        </table>
+                    </div>
+                </div>
+            </div>
+ 
+        </div>
+    </div>
+<script type="text/javascript">
+    var numberFormat = d3.format(".2f");
+
+    // var usChart = dc.geoChoroplethChart("#us-chart");
+    // var industryChart = dc.bubbleChart("#industry-chart");
+    // var roundChart = dc.bubbleChart("#round-chart");
+
+    /********************************************************
+    *                                                       *
+    *   Step0: Load data from json file                     *
+    *                                                       *
+    ********************************************************/
+
+    var objectDimension;
+    var selectedObjectTerm = "";
+    var activityDimension;
+    var selectedActivityTerm = "";
+    var docrefDimension;
+    var selectedDocref = "";
+
+    var precisionDimension ;
+    var profilesDimension ;
+    var objectLabelDimension ;
+    var activityLabelDimension ;
+
+
+    var allProfiles = {};
+    var allDocRefs = {};
+    var allObjLabels = {};
+    var allActLabels = {};
+    var dataDir = "data/100/";
+
+    d3.csv(dataDir+"some-trp-profile.csv", function(profiles) {
+            allProfiles = profiles;
+    });
+    d3.csv(dataDir+"some-trp-objLabel.csv", function(objLabels) {
+            allObjLabels = objLabels;
+    });
+    d3.csv(dataDir+"some-trp-actLabel.csv", function(actLabels) {
+            allActLabels = actLabels;
+    });
+    d3.csv(dataDir+"some-trp-doc.csv", function(docRefs) {
+            allDocRefs = docRefs;
+    });
+
+    d3.csv(dataDir+"some-trp.csv", function (csv) {
+        /********************************************************
+        *                                                       *
+        *   Step1: Create the dc.js chart objects & ling to div *
+        *                                                       *
+        ********************************************************/
+        //var pieChart = dc.pieChart("#dc-pie-graph");
+        //var volumeChart = dc.barChart("#dc-volume-chart");
+        //var lineChart = dc.lineChart("#dc-line-chart");
+        //var dataTable = dc.dataTable("#dc-table-graph");
+        //var rowChart = dc.rowChart("#dc-row-graph");
+
+        console.log("starting dc");
+        var precisionRingChart   = dc.pieChart("#precision-ring");
+        var profilesRowChart   = dc.rowChart("#profiles-row");
+        var objectLabelRowChart   = dc.rowChart("#object-label-row");
+        var activityLabelRowChart   = dc.rowChart("#activity-label-row");
+        //var objectBubbleChart = dc.bubbleChart("#object-bubble");
+        var objectTableChart   = dc.dataTable("#object-table");
+        var activityTableChart   = dc.dataTable("#activity-table");
+        var docrefTableChart   = dc.dataTable("#docref-table");
+         
+        /********************************************************
+        *                                                       *
+        *   Step2:  Run data through crossfilter                *
+        *                                                       *
+        ********************************************************/
+        console.log("running crossfilter");
+        var data = crossfilter(csv);
+     
+        /********************************************************
+        *                                                       *
+        *   Step3:  Create Dimension that we'll need            *
+        *                                                       *
+        ********************************************************/    
+
+        console.log("getting precisonDimension");
+        precisionDimension = data.dimension(function(d) { return d.prec; });
+        profilesDimension = data.dimension(function(d) { return d.id; });
+        console.log("getting objectLabelDimension");
+        objectLabelDimension = data.dimension(function(d) { return d.objLab; });
+        console.log("getting activityLabelDimension");
+        activityLabelDimension = data.dimension(function(d) { return d.actLab; });
+
+        var addKey = function(p,key) {
+            ++p.count;
+            if (key in p.d_occurs) {
+                p.d_occurs[key] += 1;
+            } else {
+                p.d_occurs[key] = 1;
+            }
+            return p;       
+        };
+        var removeKey = function(p,key) {
+            --p.count;
+            if (key in p.d_occurs) {
+                p.d_occurs[key] -= 1;
+                if (p.d_occurs[key] == 0) {
+                    delete p.d_occurs[key];
+                }
+            }
+            return p;
+        };
+
+        console.log("getting objectDimension");
+        objectDimension = data.dimension(function (d) { return d.obj; });
+        var objectGroup = objectDimension.group()
+            .reduce(
+               //add
+                function(p,v){
+                    var key = v.obj+"/"+v.objId;
+                    return addKey(p,key);
+                },
+                //remove
+                function(p,v){
+                    var key = v.obj+"/"+v.objId;
+                    return removeKey(p,key);
+                 },
+                //init
+                function(p,v){
+                    return {count:0, d_occurs: {}};
+                }
+            )
+            .order( function(p) {
+                return p.count;
+            });
+
+        var pseudoObjectDimension = {
+          top: function (x) {
+            return objectGroup.top(x).map(function (grp) { return {"term":grp.key, "count":grp.value.count, "dcount": Object.keys(grp.value.d_occurs).length}; });
+            }
+        };
+
+
+        console.log("getting activityDimension");
+        activityDimension = data.dimension(function (d) { return d.act; });
+        //var activityGroup = activityDimension.group().reduceCount();
+        var activityGroup = activityDimension.group()
+            .reduce(
+               //add
+                function(p,v){
+                    var key = v.act+"/"+v.actId;
+                    return addKey(p,key);
+                },
+                //remove
+                function(p,v){
+                    var key = v.act+"/"+v.actId;
+                    return removeKey(p,key);
+                },
+                //init
+                function(p,v){
+                    return {count:0, d_occurs: {}};
+                }
+            )
+            .order( function(p) {
+                return p.count;
+            });
+        var pseudoActivityDimension = {
+          top: function (x) {
+            return activityGroup.top(x).map(function (grp) { return {"term":grp.key, "count":grp.value.count, "dcount": Object.keys(grp.value.d_occurs).length}; });
+            }
+        };
+
+        docrefDimension = data.dimension(function (d) { return d.doc; });
+        var docrefGroup = docrefDimension.group().reduceCount();
+        var pseudoDocrefDimension = {
+          top: function (x) {
+            return docrefGroup.top(x).map(function (grp) { return {"docref":grp.key, "count":grp.value}; });
+          }
+        };
+
+
+        console.log("group by precision");
+        var byPrecision = precisionDimension.group().reduceCount();
+        var byProfiles = profilesDimension.group().reduceCount();
+        console.log("group by object label");
+        var byObjectLabel = objectLabelDimension.group().reduceCount();
+        console.log("group by activity label");
+        var byActivityLabel = activityLabelDimension.group().reduceCount();
+
+        /********************************************************
+        *                                                       *
+        *   Step4: Create the Visualisations                    *
+        *                                                       *
+        ********************************************************/
+
+
+        console.log("setup precision ring chart");
+        precisionRingChart.width(100).height(100).dimension(precisionDimension).group(byPrecision).innerRadius(25);
+        console.log("setup object label ring chart");
+
+       profilesRowChart.height(1000).width(200)
+            .dimension(profilesDimension)
+            .group(byProfiles)
+            .renderLabel(true)
+            .elasticX(true)
+            .label(function (d){ return allProfiles[+d.key].profileId;})
+            .title(function (d){ return allProfiles[+d.key].profileId + ":" + d.value;})            
+            .colorDomain([0, 70])
+            .xAxis().ticks(4);
+ 
+        objectLabelRowChart.width(300)
+           // .height(200)
+            .dimension(objectLabelDimension)
+            .group(byObjectLabel)
+            .renderLabel(true)
+            .elasticX(true)
+            .label(function (d){ return allObjLabels[+d.key].objLabel;})
+            .title(function (d){ return allObjLabels[+d.key].objLabel + ":" + d.value;})
+            .colorDomain([0, 7])
+            .xAxis().ticks(4);
+ 
+ 
+
+        console.log("setup actvity label ring chart");
+        activityLabelRowChart.width(300)
+           // .height(200)
+            .dimension(activityLabelDimension)
+            .group(byActivityLabel)
+            .renderLabel(true)
+            .elasticX(true)
+            .label(function (d){ return allActLabels[+d.key].actLabel;})
+            .title(function (d){ return allActLabels[+d.key].actLabel + ":" + d.value;})
+            .colorDomain([0, 7])
+            .xAxis().ticks(4);
+
+        objectTableChart
+            .dimension(pseudoObjectDimension)
+            .group(function(d) { return "List of top 40 selected terms"})
+            .size(40)
+            .columns([
+                function(d) { return d.term; },
+                function(d) { return +d.count; },
+                function(d) { return +d.dcount; }
+            ])
+            .renderlet(function(chart){
+                    // mix of dc API and d3 manipulation
+                    chart.selectAll(".dc-table-row").attr("onclick", "selectObjectTerm(this)");
+            })
+            .sortBy(function(d){ return -d.count; })
+            .order(d3.descending);
+        activityTableChart
+            .dimension(pseudoActivityDimension)
+            .group(function(d) { return "List of top 40 selected terms"
+             })
+            .size(40)
+            .columns([
+                function(d) { return d.term; },
+                function(d) { return +d.count; },
+                function(d) { return +d.dcount; }
+            ])
+             .renderlet(function(chart){
+                    // mix of dc API and d3 manipulation
+                    chart.selectAll(".dc-table-row").attr("onclick", "selectActivityTerm(this)");
+            })
+           .sortBy(function(d){ return -d.count; })
+            .order(d3.descending);
+        docrefTableChart
+            .dimension(pseudoDocrefDimension)
+            .group(function(d) { return "List of top 40 selected documents"})
+            .size(40)
+            .columns([
+                function(d) { return "<a target='_blank' href='pdf/"+allDocRefs[+d.docref].docRef+"' id='"+d.docref+"'>"+allDocRefs[+d.docref].docRef+"</a>"; },
+                function(d) { return +d.count; }
+            ])
+            .renderlet(function(chart){
+                    // mix of dc API and d3 manipulation
+                    chart.selectAll(".dc-table-row").attr("onclick", "selectDocref(this)");
+            })
+            .sortBy(function(d){ return -d.count; })
+            .order(d3.descending);
+
+
+
+        console.log("render all");
+        dc.renderAll();
+        console.log("finished!");
+
+      
+    });
+
+    function clearObjectTerm() {
+        objectDimension.filterAll();
+        selectedObjectTerm = "";
+        d3.select("#objectTerm").text("-");
+        dc.renderAll();
+    }
+
+    function selectObjectTerm(row) {
+        objectDimension.filterAll();
+        selectedObjectTerm = d3.select(row).select(".dc-table-column").text();
+        objectDimension.filter(selectedObjectTerm);
+        d3.select("#objectTerm").text(selectedObjectTerm);
+        dc.renderAll();
+    }
+
+    function clearDocref() {
+        docrefDimension.filterAll();
+        selectedDocref = "";
+        d3.select("#docref").text("-");
+        dc.renderAll();
+    }
+
+    function selectDocref(row) {
+        docrefDimension.filterAll();
+        var selectedDocrefA = d3.select(row).select(".dc-table-column").select("a");
+        var selectedDocrefId = selectedDocrefA.attr("id");
+        selectedDocref = selectedDocrefA.text()
+        docrefDimension.filter(selectedDocrefId);
+        d3.select("#docref").text(selectedDocref);
+        dc.renderAll();
+    }
+
+    function clearActivityTerm() {
+        activityDimension.filterAll();
+        selectedActivityTerm = "";
+        d3.select("#activityTerm").text("-");
+        dc.renderAll();
+    }
+
+    function selectActivityTerm(row) {
+        activityDimension.filterAll();
+        selectedActivityTerm = d3.select(row).select(".dc-table-column").text();
+        console.log("start filtering");
+        activityDimension.filter(selectedActivityTerm);
+        console.log("filtered, start rendering");
+        d3.select("#activityTerm").text(selectedActivityTerm);
+        dc.renderAll();
+        console.log("rendered");
+    }
+
+
+    function clearActivityLabel() {
+        activityLabelDimension.filterAll();
+        dc.renderAll();
+    }
+    function clearObjectLabel() {
+        objectLabelDimension.filterAll();
+        dc.renderAll();
+    }
+    function clearPrecision() {
+        precisionDimension.filterAll();
+        dc.renderAll();
+    }
+    function clearProfiles() {
+        profilesDimension.filterAll();
+        dc.renderAll();
+    }
+
+</script>
+
+<script src="files/jquery-latest.js"></script>
+<script src="files/bootstrap.js"></script>
+
+
+
+</body></html>
